@@ -1,0 +1,11 @@
+---
+Checks:          '-*,modernize-*,readability-*,cppcoreguidelines-*'
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+AnalyzeTemporaryDtors: false
+FormatStyle:     none
+User:            ''
+CheckOptions:    
+  - key:             modernize-use-trailing-return-type.WarnOnFunctionDefinitions 
+    value:           '0'
+---
