@@ -28,3 +28,6 @@ pyffish.egg-info
 # IDEs
 .vscode
 .idea
+
+# Documentation
+docs/html
