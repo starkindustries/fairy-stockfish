@@ -1,12 +1,12 @@
 # Fairy-Stockfish
 
-## Overview
-
 [![Build Status](https://github.com/fairy-stockfish/Fairy-Stockfish/workflows/Release/badge.svg?branch=master)](https://github.com/fairy-stockfish/Fairy-Stockfish/actions?query=workflow%3ARelease)
 [![Build Status](https://github.com/fairy-stockfish/Fairy-Stockfish/workflows/fairy/badge.svg?branch=master)](https://github.com/fairy-stockfish/Fairy-Stockfish/actions?query=workflow%3Afairy)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/fairy-stockfish/Fairy-Stockfish?branch=master&svg=true)](https://ci.appveyor.com/project/ianfab/Fairy-Stockfish/branch/master)
 [![PyPI version](https://badge.fury.io/py/pyffish.svg)](https://badge.fury.io/py/pyffish)
 [![NPM version](https://img.shields.io/npm/v/ffish.svg?sanitize=true)](https://www.npmjs.com/package/ffish)
+
+## Overview
 
 Fairy-Stockfish is a chess variant engine derived from [Stockfish](https://github.com/official-stockfish/Stockfish/) designed for the support of fairy chess variants and easy extensibility with more games. It can play various regional, historical, and modern chess variants as well as [games with user-defined rules](https://github.com/fairy-stockfish/Fairy-Stockfish/wiki/Variant-configuration). For [compatibility with graphical user interfaces](https://github.com/fairy-stockfish/Fairy-Stockfish/wiki/Graphical-user-interfaces) it supports the UCI, UCCI, USI, UCI-cyclone, and CECP/XBoard protocols.
 
@@ -385,6 +385,50 @@ can be found by typing the following command in a console:
 
 ```
     ./stockfish compiler
+```
+
+## Compiling Stockfish on Windows Using WSL
+
+Compile Stockfish on Windows with Windows-Subsystem-for-Linux (WSL). First install WSL from PowerShell:
+
+```
+wsl --install -d ubuntu
+```
+
+Launch WSL and install the necessary tools:
+```
+sudo apt update
+sudo apt install -y g++ mingw-w64
+```
+
+Finally, compile Stockfish:
+```
+make clean
+make build ARCH=x86-64 COMP=mingw
+```
+
+Once the build completes, verify your .exe file:
+```
+$ file stockfish.exe
+stockfish.exe: PE32+ executable (console) x86-64, for MS Windows
+```
+
+Verify the .exe works back in PowerShell:
+```
+PS C:\Users\zionp\Documents\fairy-stockfish\src> .\stockfish.exe
+Fairy-Stockfish 080623 by Fabian Fichter
+```
+
+Enter the `uci` command and verify that Stockfish returns `uciok` response:
+```
+uci
+id name Fairy-Stockfish 080623
+id author Fabian Fichter
+
+option name Debug Log File type string default
+option name Threads type spin default 1 min 1 max 512
+[...]
+uciok
 ```
 
 ## Understanding the code base and participating in the project
