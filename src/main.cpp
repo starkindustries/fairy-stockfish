@@ -20,6 +20,7 @@
 
 #include "bitboard.h"
 #include "endgame.h"
+#include "piece.h"
 #include "position.h"
 #include "psqt.h"
 #include "search.h"
@@ -27,37 +28,46 @@
 #include "thread.h"
 #include "tt.h"
 #include "uci.h"
-
-#include "piece.h"
 #include "variant.h"
 #include "xboard.h"
 
-
 using namespace Stockfish;
 
-int main(int argc, char* argv[]) {
+/**
+ * @brief The main function for the Stockfish chess engine.
+ *
+ * This function initializes various components of the Stockfish engine,
+ * including the UCI interface, search threads, and various data structures.
+ * It then enters the main UCI loop, where it waits for commands from the
+ * user interface. After the UCI loop exits, it cleans up and exits.
+ *
+ * @param argc The number of command-line arguments.
+ * @param argv The command-line arguments.
+ * @return 0 on successful execution.
+ */
+int main(int argc, char* argv[])
+{
+    std::cout << engine_info() << std::endl;
 
-  std::cout << engine_info() << std::endl;
+    pieceMap.init();
+    variants.init();
+    CommandLine::init(argc, argv);
+    UCI::init(Options);
+    Tune::init();
+    PSQT::init(variants.find(Options["UCI_Variant"])->second);
+    Bitboards::init();
+    Position::init();
+    Bitbases::init();
+    Endgames::init();
+    Threads.set(size_t(Options["Threads"]));
+    Search::clear();  // After threads are up
+    Eval::NNUE::init();
 
-  pieceMap.init();
-  variants.init();
-  CommandLine::init(argc, argv);
-  UCI::init(Options);
-  Tune::init();
-  PSQT::init(variants.find(Options["UCI_Variant"])->second);
-  Bitboards::init();
-  Position::init();
-  Bitbases::init();
-  Endgames::init();
-  Threads.set(size_t(Options["Threads"]));
-  Search::clear(); // After threads are up
-  Eval::NNUE::init();
+    UCI::loop(argc, argv);
 
-  UCI::loop(argc, argv);
-
-  Threads.set(0);
-  variants.clear_all();
-  pieceMap.clear_all();
-  delete XBoard::stateMachine;
-  return 0;
+    Threads.set(0);
+    variants.clear_all();
+    pieceMap.clear_all();
+    delete XBoard::stateMachine;
+    return 0;
 }
