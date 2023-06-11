@@ -14,6 +14,8 @@ src/-lstdc++.res
 # Build/test artifacts
 *.exe
 tests/syzygy
+build
+dist
 
 # ffishjs
 tests/js/node_modules
