@@ -38,14 +38,20 @@ else
 endif
 
 ### Source and object files
-SRCS = benchmark.cpp bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp main.cpp \
+CORE_SRCS = benchmark.cpp bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp \
 	material.cpp misc.cpp movegen.cpp movepick.cpp pawns.cpp position.cpp psqt.cpp \
 	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp \
 	nnue/evaluate_nnue.cpp nnue/features/half_ka_v2.cpp \
 	partner.cpp parser.cpp piece.cpp variant.cpp xboard.cpp \
 	nnue/features/half_ka_v2_variants.cpp
 
+LIB_SRCS = $(CORE_SRCS)
+
+SRCS = $(CORE_SRCS) main.cpp
+
 OBJS = $(notdir $(SRCS:.cpp=.o))
+
+LIB_OBJS = $(notdir $(LIB_SRCS:.cpp=.o))
 
 VPATH = syzygy:nnue:nnue/features
 
@@ -853,6 +859,16 @@ profileclean:
 	@rm -f stockfish.exe.lto_wrapper_args
 	@rm -f stockfish.exe.ltrans.out
 	@rm -f ./-lstdc++.res
+
+# **********************************************
+# This target builds a libffish.a file
+# **********************************************
+
+# To use: `make library-build ARCH=x86-64 COMP=mingw largeboards=yes all=yes`
+library-build: LDFLAGS += -static
+library-build: $(load_net) config-sanity $(LIB_OBJS) .depend 
+	@echo "Starting library-build. Creating libffish.a archive.."
+	@ar rvs libffish.a $(LIB_OBJS)
 
 default:
 	help

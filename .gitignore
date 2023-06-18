@@ -7,6 +7,9 @@ src/.depend
 src/stockfish*
 src/-lstdc++.res
 
+# Built library
+src/libffish.a
+
 # Neural network for the NNUE evaluation
 **/*.nnue
 
