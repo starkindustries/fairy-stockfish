@@ -14,7 +14,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-11]
+        #! Skipping MacOS build due to issue with github workflow never completing
+        #! Reference: https://github.com/starkindustries/fairy-stockfish/actions/runs/5314331542/jobs/9621409711
+        #! Old 'os' setting:
+        #! os: [ubuntu-20.04, windows-2019, macos-11]
+        #! New 'os' setting without MacOS:
+        os: [ubuntu-20.04, windows-2019]
 
     steps:
       - uses: actions/checkout@v3

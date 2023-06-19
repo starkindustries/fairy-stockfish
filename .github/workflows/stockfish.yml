@@ -25,7 +25,9 @@ jobs:
               os: ubuntu-20.04,
               compiler: g++,
               comp: gcc,
-              run_expensive_tests: true
+              #! Updated this setting to false due to github workflows taking too long (20+ mins)              
+              #! Reference: https://github.com/starkindustries/fairy-stockfish/actions/runs/5314331551/jobs/9621409136
+              run_expensive_tests: false
             }
           - {
               name: "Ubuntu 20.04 Clang",
