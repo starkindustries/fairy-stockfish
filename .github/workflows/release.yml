@@ -14,7 +14,7 @@ jobs:
     runs-on: windows-2022
 
     steps:
-      - uses: starkindustries/configure-pagefile-action
+      - uses: starkindustries/configure-pagefile-action@v1.3
         with:	
             minimum-size: 16GB
             maximum-size: 16GB
