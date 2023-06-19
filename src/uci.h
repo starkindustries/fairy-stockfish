@@ -24,19 +24,20 @@
 #include <vector>
 
 #include "types.h"
-
 #include "variant.h"
 
-namespace Stockfish {
+namespace Stockfish
+{
 
 class Position;
 
-namespace UCI {
+namespace UCI
+{
 
 #ifndef _WIN32
-  constexpr char SepChar = ':';
+constexpr char SepChar = ':';
 #else
-  constexpr char SepChar = ';';
+constexpr char SepChar = ';';
 #endif
 
 void init_variant(const Variant* v);
@@ -44,43 +45,45 @@ void init_variant(const Variant* v);
 class Option;
 
 /// Custom comparator because UCI options should be case insensitive
-struct CaseInsensitiveLess {
-  bool operator() (const std::string&, const std::string&) const;
+struct CaseInsensitiveLess
+{
+    bool operator()(const std::string&, const std::string&) const;
 };
 
 /// Our options container is actually a std::map
 typedef std::map<std::string, Option, CaseInsensitiveLess> OptionsMap;
 
 /// Option class implements an option as defined by UCI protocol
-class Option {
+class Option
+{
+    typedef void (*OnChange)(const Option&);
 
-  typedef void (*OnChange)(const Option&);
+   public:
+    Option(OnChange = nullptr);
+    Option(bool v, OnChange = nullptr);
+    Option(const char* v, OnChange = nullptr);
+    Option(const char* v, const std::vector<std::string>& variants,
+           OnChange = nullptr);
+    Option(double v, int minv, int maxv, OnChange = nullptr);
 
-public:
-  Option(OnChange = nullptr);
-  Option(bool v, OnChange = nullptr);
-  Option(const char* v, OnChange = nullptr);
-  Option(const char* v, const std::vector<std::string>& variants, OnChange = nullptr);
-  Option(double v, int minv, int maxv, OnChange = nullptr);
+    Option& operator=(const std::string&);
+    void operator<<(const Option&);
+    operator double() const;
+    operator std::string() const;
+    bool operator==(const char*) const;
+    bool operator!=(const char*) const;
+    void set_combo(std::vector<std::string> newComboValues);
+    void set_default(std::string newDefault);
+    const std::string get_type() const;
 
-  Option& operator=(const std::string&);
-  void operator<<(const Option&);
-  operator double() const;
-  operator std::string() const;
-  bool operator==(const char*) const;
-  bool operator!=(const char*) const;
-  void set_combo(std::vector<std::string> newComboValues);
-  void set_default(std::string newDefault);
-  const std::string get_type() const;
+   private:
+    friend std::ostream& operator<<(std::ostream&, const OptionsMap&);
 
-private:
-  friend std::ostream& operator<<(std::ostream&, const OptionsMap&);
-
-  std::string defaultValue, currentValue, type;
-  int min, max;
-  std::vector<std::string> comboValues;
-  size_t idx;
-  OnChange on_change;
+    std::string defaultValue, currentValue, type;
+    int min, max;
+    std::vector<std::string> comboValues;
+    size_t idx;
+    OnChange on_change;
 };
 
 void init(OptionsMap&);
@@ -96,24 +99,26 @@ Move to_move(const Position& pos, std::string& str);
 std::string option_name(std::string name);
 bool is_valid_option(UCI::OptionsMap& options, std::string& name);
 
-} // namespace UCI
+}  // namespace UCI
 
 extern UCI::OptionsMap Options;
 
-enum Protocol {
-  UCI_GENERAL,
-  USI,
-  UCCI,
-  UCI_CYCLONE,
-  XBOARD,
+enum Protocol
+{
+    UCI_GENERAL,
+    USI,
+    UCCI,
+    UCI_CYCLONE,
+    XBOARD,
 };
 
-constexpr bool is_uci_dialect(Protocol p) {
-  return p != XBOARD;
+constexpr bool is_uci_dialect(Protocol p)
+{
+    return p != XBOARD;
 }
 
 extern Protocol CurrentProtocol;
 
-} // namespace Stockfish
+}  // namespace Stockfish
 
-#endif // #ifndef UCI_H_INCLUDED
+#endif  // #ifndef UCI_H_INCLUDED
