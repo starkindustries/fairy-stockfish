@@ -602,20 +602,19 @@ void bindThisThread(size_t idx) {
 #else
 #include <unistd.h>
 #define GETCWD getcwd
-#endif
+#endif // _WIN32
 
 namespace CommandLine {
 
-string argv0;            // path+name of the executable binary, as given by argv[0]
+//! DEPRECATED argv0 - delete me
+//! string argv0;        // path+name of the executable binary, as given by argv[0]
 string binaryDirectory;  // path of the executable directory
 string workingDirectory; // path of the working directory
 
-void init(int argc, char* argv[]) {
-    (void)argc;
+void init(string argv0) {
     string pathSeparator;
 
     // extract the path+name of the executable binary
-    argv0 = argv[0];
 
 #ifdef _WIN32
     pathSeparator = "\\";
@@ -625,29 +624,29 @@ void init(int argc, char* argv[]) {
     char* pgmptr = nullptr;
     if (!_get_pgmptr(&pgmptr) && pgmptr != nullptr && *pgmptr)
         argv0 = pgmptr;
-  #endif
+  #endif // _MSC_VER
 #else
     pathSeparator = "/";
-#endif
+#endif // _WIN32
 
     // extract the working directory
     workingDirectory = "";
     char buff[40000];
     char* cwd = GETCWD(buff, 40000);
     if (cwd)
-        workingDirectory = cwd;
+        {workingDirectory = cwd;}
 
     // extract the binary directory path from argv0
     binaryDirectory = argv0;
     size_t pos = binaryDirectory.find_last_of("\\/");
     if (pos == std::string::npos)
-        binaryDirectory = "." + pathSeparator;
+        {binaryDirectory = "." + pathSeparator;}
     else
-        binaryDirectory.resize(pos + 1);
+        {binaryDirectory.resize(pos + 1);}
 
     // pattern replacement: "./" at the start of path is replaced by the working directory
     if (binaryDirectory.find("." + pathSeparator) == 0)
-        binaryDirectory.replace(0, 1, workingDirectory);
+        {binaryDirectory.replace(0, 1, workingDirectory);}
 }
 
 

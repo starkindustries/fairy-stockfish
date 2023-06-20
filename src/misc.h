@@ -189,7 +189,7 @@ namespace WinProcGroup {
 }
 
 namespace CommandLine {
-  void init(int argc, char* argv[]);
+  void init(std::string argv0);
 
   extern std::string binaryDirectory;  // path of the executable directory
   extern std::string workingDirectory; // path of the working directory
