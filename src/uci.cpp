@@ -317,6 +317,195 @@ void load(istringstream& is, bool check = false)
     }
 }
 
+// get_default_variant()
+string get_default_variant(Protocol protocol)
+{
+#ifdef LARGEBOARDS
+    if (protocol == USI)
+    {
+        return "shogi";
+    }
+    else if (protocol == UCCI || protocol == UCI_CYCLONE)
+    {
+        return "xiangqi";
+    }
+    else
+    {
+        return "chess";
+    }
+#else
+    if (protocol == USI)
+    {
+        return "minishogi";
+    }
+    else if (protocol == UCCI || protocol == UCI_CYCLONE)
+    {
+        return "minixiangqi";
+    }
+    else
+    {
+        return "chess";
+    }
+#endif
+}
+
+// get_updated_protocol()
+Protocol get_updated_protocol(const string token)
+{
+    if (token == "uci")
+    {
+        if (CurrentProtocol == UCI_CYCLONE)
+        {
+            return UCI_CYCLONE;
+        }
+        return UCI_GENERAL;
+    }
+    else if (token == "ucicyclone")
+    {
+        return UCI_CYCLONE;
+    }
+    else if (token == "usi")
+    {
+        return USI;
+    }
+    else if (token == "ucci")
+    {
+        return UCCI;
+    }
+    else if (token == "xboard")
+    {
+        return XBOARD;
+    }
+
+    // Unknown protocol type. Default to UCI_GENERAL and print error:
+    sync_cout << "Unknown protocol: " << token << sync_endl;
+    sync_cout << "Defaulting to UCI_GENERAL protocol" << sync_endl;
+    return UCI_GENERAL;
+}
+
+//! WORKING ON THIS
+// parse_token() parses commands from the loop() function
+
+// void go(Position& pos, istringstream& is, StateListPtr& states,
+//         const std::vector<Move>& banmoves = {})
+
+void parse_token(string cmd, string token, istringstream& inputstream, Position& pos,
+                 StateListPtr& states, std::vector<Move>& banmoves, int& argc)
+{
+    if (token == "quit" || token == "stop")
+        Threads.stop = true;
+
+    // The GUI sends 'ponderhit' to tell us the user has played the expected
+    // move. So 'ponderhit' will be sent if we were told to ponder on the
+    // same move the user has played. We should continue searching but
+    // switch from pondering to normal search.
+    else if (token == "ponderhit")
+        Threads.main()->ponder = false;  // Switch to normal search
+
+    else if (token == "uci" || token == "usi" || token == "ucci" ||
+             token == "xboard" || token == "ucicyclone")
+    {
+        CurrentProtocol = get_updated_protocol(token);
+        string defaultVariant = get_default_variant(CurrentProtocol);
+        Options["UCI_Variant"].set_default(defaultVariant);
+        std::istringstream ss("startpos");
+        position(pos, ss, states);
+        if (is_uci_dialect(CurrentProtocol) && token != "ucicyclone")
+            sync_cout << "id name " << engine_info(true) << "\n"
+                      << Options << "\n"
+                      << token << "ok" << sync_endl;
+        // Allow to enforce protocol at startup
+        argc = 1;
+    }
+
+    else if (CurrentProtocol == XBOARD)
+        XBoard::stateMachine->process_command(token, inputstream);
+
+    else if (token == "setoption")
+        setoption(inputstream);
+    // UCCI-specific banmoves command
+    else if (token == "banmoves")
+    {
+        while (inputstream >> token)
+            banmoves.push_back(UCI::to_move(pos, token));
+    }
+    else if (token == "go")
+    {
+        go(pos, inputstream, states, banmoves);
+    }
+    else if (token == "position")
+    {
+        position(pos, inputstream, states);
+        banmoves.clear();
+    }
+    else if (token == "ucinewgame" || token == "usinewgame" ||
+             token == "uccinewgame")
+    {
+        Search::clear();
+    }
+    else if (token == "isready")
+    {
+        sync_cout << "readyok" << sync_endl;
+    }
+
+    // Additional custom non-UCI commands, mainly for debugging.
+    // Do not use these commands during a search!
+    else if (token == "flip")
+    {
+        pos.flip();
+    }
+    else if (token == "bench")
+    {
+        bench(pos, inputstream, states);
+    }
+    else if (token == "d")
+    {
+        sync_cout << pos << sync_endl;
+    }
+    else if (token == "eval")
+    {
+        trace_eval(pos);
+    }
+    else if (token == "compiler")
+    {
+        sync_cout << compiler_info() << sync_endl;
+    }
+    else if (token == "export_net")
+    {
+        std::optional<std::string> filename;
+        std::string f;
+        if (inputstream >> skipws >> f)
+            filename = f;
+        Eval::NNUE::save_eval(filename);
+    }
+    else if (token == "load")
+    {
+        load(inputstream);
+        argc = 1;
+    }  // continue reading stdin
+    else if (token == "check")
+    {
+        load(inputstream, true);
+    }
+    // UCI-Cyclone omits the "position" keyword
+    else if (token == "fen" || token == "startpos")
+    {
+#ifdef LARGEBOARDS
+        if (CurrentProtocol == UCI_GENERAL && Options["UCI_Variant"] == "chess")
+        {
+            CurrentProtocol = UCI_CYCLONE;
+            Options["UCI_Variant"].set_default("xiangqi");
+        }
+#endif
+        inputstream.seekg(0);
+        position(pos, inputstream, states);
+    }
+    else if (!token.empty() && token[0] != '#')
+    {
+        sync_cout << "Unknown command: " << cmd << sync_endl;
+    }
+}
+
 }  // namespace
 
 /// UCI::loop() waits for a command from stdin, parses it and calls the
@@ -328,6 +517,13 @@ void load(istringstream& is, bool check = false)
 
 void UCI::loop(int argc, char* argv[])
 {
+    // Print argc and argv
+    sync_cout << "UCI::loop start.." << sync_endl;
+    sync_cout << "argc: " << argc << sync_endl;
+    for (int i = 0; i < argc; ++i) {
+        sync_cout << "argv[" << i << "]: " << argv[i] << sync_endl;;
+    }
+
     Position pos;
     string token, cmd;
     StateListPtr states(new std::deque<StateInfo>(1));
@@ -337,7 +533,10 @@ void UCI::loop(int argc, char* argv[])
             variants.find(Options["UCI_Variant"])->second->startFen, false,
             &states->back(), Threads.main());
 
-    for (int i = 1; i < argc; ++i) cmd += std::string(argv[i]) + " ";
+    for (int i = 1; i < argc; ++i)
+    {        
+        cmd += std::string(argv[i]) + " ";
+    }
 
     // XBoard state machine
     XBoard::stateMachine = new XBoard::StateMachine(pos, states);
@@ -346,136 +545,47 @@ void UCI::loop(int argc, char* argv[])
 
     if (argc > 1 && (std::strcmp(argv[1], "noautoload") == 0))
     {
+        sync_cout << "Received arg [noautoload]" << sync_endl;
         cmd = "";
         argc = 1;
     }
+
+    // else if argc == 1 (no params given) OR argv[1] is NOT equal to 'load'
     else if (argc == 1 || !(std::strcmp(argv[1], "load") == 0))
     {
+        sync_cout << "Entered if-block: '(argc == 1 || !(std::strcmp(argv[1], \"load\") == 0))'" << sync_endl;
+        sync_cout << "Checking environment for variants.ini file.." << sync_endl;
+
         // Check environment for variants.ini file
         char* envVariantPath = std::getenv("FAIRY_STOCKFISH_VARIANT_PATH");
         if (envVariantPath != NULL)
+        {
             Options["VariantPath"] = std::string(envVariantPath);
+        }
     }
 
+    //* Loop starts here
     do
     {
-        if (argc == 1 &&
-            !getline(cin, cmd))  // Block here waiting for input or EOF
+        // Block here waiting for input or EOF
+        if (argc == 1 && !getline(cin, cmd))
+        {
             cmd = "quit";
+        }
 
         // Direct Initialization:
         // `T object ( arg );`
-        // `Type variable(constructor arguments);`        
+        // `Type variable(constructor arguments);`
         // https://en.cppreference.com/w/cpp/language/direct_initialization
         istringstream inputstream(cmd);
 
-        token
-            .clear();  // Avoid a stale if getline() returns empty or blank line
+        // Avoid a stale value if getline() returns empty or blank line
+        // by clearing token
+        token.clear();
         inputstream >> skipws >> token;
 
-        if (token == "quit" || token == "stop")
-            Threads.stop = true;
-
-        // The GUI sends 'ponderhit' to tell us the user has played the expected
-        // move. So 'ponderhit' will be sent if we were told to ponder on the
-        // same move the user has played. We should continue searching but
-        // switch from pondering to normal search.
-        else if (token == "ponderhit")
-            Threads.main()->ponder = false;  // Switch to normal search
-
-        else if (token == "uci" || token == "usi" || token == "ucci" ||
-                 token == "xboard" || token == "ucicyclone")
-        {
-            CurrentProtocol =
-                token == "uci" ? (CurrentProtocol == UCI_CYCLONE ? UCI_CYCLONE
-                                                                 : UCI_GENERAL)
-                : token == "ucicyclone" ? UCI_CYCLONE
-                : token == "usi"        ? USI
-                : token == "ucci"       ? UCCI
-                                        : XBOARD;
-            string defaultVariant = string(
-#ifdef LARGEBOARDS
-                CurrentProtocol == USI ? "shogi"
-                : CurrentProtocol == UCCI || CurrentProtocol == UCI_CYCLONE
-                    ? "xiangqi"
-#else
-                CurrentProtocol == USI ? "minishogi"
-                : CurrentProtocol == UCCI || CurrentProtocol == UCI_CYCLONE
-                    ? "minixiangqi"
-#endif
-                    : "chess");
-            Options["UCI_Variant"].set_default(defaultVariant);
-            std::istringstream ss("startpos");
-            position(pos, ss, states);
-            if (is_uci_dialect(CurrentProtocol) && token != "ucicyclone")
-                sync_cout << "id name " << engine_info(true) << "\n"
-                          << Options << "\n"
-                          << token << "ok" << sync_endl;
-            // Allow to enforce protocol at startup
-            argc = 1;
-        }
-
-        else if (CurrentProtocol == XBOARD)
-            XBoard::stateMachine->process_command(token, inputstream);
-
-        else if (token == "setoption")
-            setoption(inputstream);
-        // UCCI-specific banmoves command
-        else if (token == "banmoves")
-            while (inputstream >> token) banmoves.push_back(UCI::to_move(pos, token));
-        else if (token == "go")
-            go(pos, inputstream, states, banmoves);
-        else if (token == "position")
-            position(pos, inputstream, states), banmoves.clear();
-        else if (token == "ucinewgame" || token == "usinewgame" ||
-                 token == "uccinewgame")
-            Search::clear();
-        else if (token == "isready")
-            sync_cout << "readyok" << sync_endl;
-
-        // Additional custom non-UCI commands, mainly for debugging.
-        // Do not use these commands during a search!
-        else if (token == "flip")
-            pos.flip();
-        else if (token == "bench")
-            bench(pos, inputstream, states);
-        else if (token == "d")
-            sync_cout << pos << sync_endl;
-        else if (token == "eval")
-            trace_eval(pos);
-        else if (token == "compiler")
-            sync_cout << compiler_info() << sync_endl;
-        else if (token == "export_net")
-        {
-            std::optional<std::string> filename;
-            std::string f;
-            if (inputstream >> skipws >> f)
-                filename = f;
-            Eval::NNUE::save_eval(filename);
-        }
-        else if (token == "load")
-        {
-            load(inputstream);
-            argc = 1;
-        }  // continue reading stdin
-        else if (token == "check")
-            load(inputstream, true);
-        // UCI-Cyclone omits the "position" keyword
-        else if (token == "fen" || token == "startpos")
-        {
-#ifdef LARGEBOARDS
-            if (CurrentProtocol == UCI_GENERAL &&
-                Options["UCI_Variant"] == "chess")
-            {
-                CurrentProtocol = UCI_CYCLONE;
-                Options["UCI_Variant"].set_default("xiangqi");
-            }
-#endif
-            inputstream.seekg(0);
-            position(pos, inputstream, states);
-        }
-        else if (!token.empty() && token[0] != '#')
-            sync_cout << "Unknown command: " << cmd << sync_endl;
+        // parse command
+        parse_token(cmd, token, inputstream, pos, states, banmoves, argc);
 
     } while (token != "quit" && argc == 1);  // Command line args are one-shot
 }
