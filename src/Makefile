@@ -864,7 +864,15 @@ profileclean:
 # This target builds a libffish.a file
 # **********************************************
 
-# To use: `make library-build ARCH=x86-64 COMP=mingw largeboards=yes all=yes`
+# Note that Make has an implicit rule to compile C/C++ files and even checks 
+# the CFLAGS/CXXFLAGS variable for compiler flags to use during compilation
+# https://www.gnu.org/software/make/manual/html_node/Implicit-Rules.html
+
+# To use: 
+# make library-build ARCH=x86-64 COMP=mingw largeboards=yes all=yes
+#
+# To debug:
+# make library-build ARCH=x86-64 COMP=mingw largeboards=yes all=yes debug=yes
 library-build: LDFLAGS += -static
 library-build: $(load_net) config-sanity $(LIB_OBJS) .depend 
 	@echo "Starting library-build. Creating libffish.a archive.."
@@ -980,6 +988,7 @@ icc-profile-use:
 	all
 
 .depend:
+	@echo "Running .depend rule.."
 	-@$(CXX) $(DEPENDFLAGS) -MM $(SRCS) > $@ 2> /dev/null
 
 -include .depend
