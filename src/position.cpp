@@ -3134,4 +3134,10 @@ bool Position::pos_is_ok() const {
   return true;
 }
 
+// Added for debugging purposes
+size_t Position::get_state_info_size()
+{
+    return sizeof(StateInfo);
+}
+
 } // namespace Stockfish
