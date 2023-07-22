@@ -698,7 +698,7 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
                   ss << piece_to_char()[piece_on(make_square(f, r))];
 
                   // Set promoted pieces
-                  if (((captures_to_hand() && !drop_loop()) || showPromoted) && is_promoted(make_square(f, r)))
+                  if (((captures_to_hand() && !drop_loop()) || two_boards() ||  showPromoted) && is_promoted(make_square(f, r)))
                       ss << "~";
               }
           }
@@ -1660,7 +1660,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       // Find end of rows to be flipped
       if (flip_enclosed_pieces() == REVERSI)
       {
-          Bitboard b = attacks_bb(us, QUEEN, to, board_bb() & ~pieces(~us)) & ~PseudoAttacks[us][KING][to] & pieces(us);
+          Bitboard b = attacks_bb(us, QUEEN, to, ~pieces(~us)) & ~PseudoAttacks[us][KING][to] & pieces(us);
           while(b)
               st->flippedPieces |= between_bb(pop_lsb(b), to) ^ to;
       }
@@ -3132,6 +3132,12 @@ bool Position::pos_is_ok() const {
       }
 
   return true;
+}
+
+// Added for debugging purposes
+size_t Position::get_state_info_size()
+{
+    return sizeof(StateInfo);
 }
 
 } // namespace Stockfish

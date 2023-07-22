@@ -332,6 +332,9 @@ public:
   void put_piece(Piece pc, Square s, bool isPromoted = false, Piece unpromotedPc = NO_PIECE);
   void remove_piece(Square s);
 
+  // Added for debugging purposes
+  static size_t get_state_info_size();
+
 private:
   // Initialization helpers (used while setting up a position)
   void set_castling_right(Color c, Square rfrom);
