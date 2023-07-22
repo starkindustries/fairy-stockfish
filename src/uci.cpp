@@ -383,15 +383,14 @@ Protocol get_updated_protocol(const string token)
     return UCI_GENERAL;
 }
 
-//! WORKING ON THIS
-// parse_token() parses commands from the loop() function
-
-// void go(Position& pos, istringstream& is, StateListPtr& states,
-//         const std::vector<Move>& banmoves = {})
-
-void parse_token(string cmd, string token, istringstream& inputstream, Position& pos,
-                 StateListPtr& states, std::vector<Move>& banmoves, int& argc)
+// parse_token()
+// parse individual commands received from the loop() function
+void parse_token(string cmd, Position& pos, StateListPtr& states, std::vector<Move>& banmoves)
 {
+    istringstream inputstream(cmd);
+    std::string token;
+    inputstream >> skipws >> token;
+
     if (token == "quit" || token == "stop")
         Threads.stop = true;
 
@@ -411,18 +410,22 @@ void parse_token(string cmd, string token, istringstream& inputstream, Position&
         std::istringstream ss("startpos");
         position(pos, ss, states);
         if (is_uci_dialect(CurrentProtocol) && token != "ucicyclone")
+        {
             sync_cout << "id name " << engine_info(true) << "\n"
                       << Options << "\n"
                       << token << "ok" << sync_endl;
+        }
         // Allow to enforce protocol at startup
-        argc = 1;
     }
 
     else if (CurrentProtocol == XBOARD)
+    {
         XBoard::stateMachine->process_command(token, inputstream);
-
+    }
     else if (token == "setoption")
+    {
         setoption(inputstream);
+    }
     // UCCI-specific banmoves command
     else if (token == "banmoves")
     {
@@ -481,7 +484,6 @@ void parse_token(string cmd, string token, istringstream& inputstream, Position&
     else if (token == "load")
     {
         load(inputstream);
-        argc = 1;
     }  // continue reading stdin
     else if (token == "check")
     {
@@ -517,6 +519,10 @@ void parse_token(string cmd, string token, istringstream& inputstream, Position&
 
 void UCI::loop(int argc, char* argv[])
 {
+    //! UCI::loop prep - region
+    //! need to properly refactor/understand this prep code in order 
+    //! to correctly refactor out token parsing code
+
     // Print argc and argv
     sync_cout << "UCI::loop start.." << sync_endl;
     sync_cout << "argc: " << argc << sync_endl;
@@ -525,7 +531,7 @@ void UCI::loop(int argc, char* argv[])
     }
 
     Position pos;
-    string token, cmd;
+    string cmd;
     StateListPtr states(new std::deque<StateInfo>(1));
 
     assert(variants.find(Options["UCI_Variant"])->second != nullptr);
@@ -550,7 +556,7 @@ void UCI::loop(int argc, char* argv[])
         argc = 1;
     }
 
-    // else if argc == 1 (no params given) OR argv[1] is NOT equal to 'load'
+    // check if argc == 1 (no params given) OR argv[1] is NOT equal to 'load'
     else if (argc == 1 || !(std::strcmp(argv[1], "load") == 0))
     {
         sync_cout << "Entered if-block: '(argc == 1 || !(std::strcmp(argv[1], \"load\") == 0))'" << sync_endl;
@@ -564,30 +570,21 @@ void UCI::loop(int argc, char* argv[])
         }
     }
 
+    //! UCI::loop prep - endregion
+
     //* Loop starts here
     do
     {
         // Block here waiting for input or EOF
-        if (argc == 1 && !getline(cin, cmd))
+        if (!getline(cin, cmd))
         {
             cmd = "quit";
         }
 
-        // Direct Initialization:
-        // `T object ( arg );`
-        // `Type variable(constructor arguments);`
-        // https://en.cppreference.com/w/cpp/language/direct_initialization
-        istringstream inputstream(cmd);
-
-        // Avoid a stale value if getline() returns empty or blank line
-        // by clearing token
-        token.clear();
-        inputstream >> skipws >> token;
-
         // parse command
-        parse_token(cmd, token, inputstream, pos, states, banmoves, argc);
+        parse_token(cmd, pos, states, banmoves);
 
-    } while (token != "quit" && argc == 1);  // Command line args are one-shot
+    } while (cmd != "quit");  // Command line args are one-shot
 }
 
 /// UCI::value() converts a Value to a string suitable for use with the UCI
