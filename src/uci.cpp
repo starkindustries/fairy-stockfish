@@ -40,6 +40,9 @@ using namespace std;
 namespace Stockfish
 {
 
+//! TODO: refactor out this global var
+std::string bestmove = "";
+
 extern vector<string> setup_bench(const Position&, istream&);
 
 namespace
@@ -383,9 +386,9 @@ Protocol get_updated_protocol(const string token)
     return UCI_GENERAL;
 }
 
-// parse_token()
+// parse_command()
 // parse individual commands received from the loop() function
-void parse_token(string cmd, Position& pos, StateListPtr& states, std::vector<Move>& banmoves)
+void parse_command(string cmd, Position& pos, StateListPtr& states, std::vector<Move>& banmoves)
 {
     istringstream inputstream(cmd);
     std::string token;
@@ -451,8 +454,8 @@ void parse_token(string cmd, Position& pos, StateListPtr& states, std::vector<Mo
         sync_cout << "readyok" << sync_endl;
     }
 
-    // Additional custom non-UCI commands, mainly for debugging.
-    // Do not use these commands during a search!
+    //! Additional custom non-UCI commands, mainly for debugging.
+    //! Do not use these commands during a search!
     else if (token == "flip")
     {
         pos.flip();
@@ -509,6 +512,124 @@ void parse_token(string cmd, Position& pos, StateListPtr& states, std::vector<Mo
 }
 
 }  // namespace
+
+
+void UCI::pre_parse_init(Position& pos, StateListPtr& states, std::vector<Move>& banmoves)
+{
+    states = StateListPtr(new std::deque<StateInfo>(1));
+    assert(variants.find(Options["UCI_Variant"])->second != nullptr);
+    pos.set(variants.find(Options["UCI_Variant"])->second,
+            variants.find(Options["UCI_Variant"])->second->startFen, false,
+            &states->back(), Threads.main());
+
+    // XBoard state machine
+    XBoard::stateMachine = new XBoard::StateMachine(pos, states);
+    // UCCI banmoves state
+    banmoves = {};
+}
+
+// parse_command_str()
+// Nearly identical to parse_command() above. However, this function returns
+// a 'result' string and also does not contain the non-UCI/debug commands.
+std::string UCI::parse_command_str(std::string cmd, Position& pos, StateListPtr& states, std::vector<Move>& banmoves)
+{
+    istringstream inputstream(cmd);
+    std::string token;
+    inputstream >> skipws >> token;
+
+    if (token == "quit" || token == "stop")
+    {
+        Threads.stop = true;
+        return "";
+    }
+
+    // The GUI sends 'ponderhit' to tell us the user has played the expected
+    // move. So 'ponderhit' will be sent if we were told to ponder on the
+    // same move the user has played. We should continue searching but
+    // switch from pondering to normal search.
+    if (token == "ponderhit")
+    {
+        Threads.main()->ponder = false;  // Switch to normal search
+        return "";
+    }
+
+    if (token == "uci" || token == "usi" || token == "ucci" ||
+             token == "xboard" || token == "ucicyclone")
+    {
+        CurrentProtocol = get_updated_protocol(token);
+        string defaultVariant = get_default_variant(CurrentProtocol);
+        Options["UCI_Variant"].set_default(defaultVariant);
+        std::istringstream ss("startpos");
+        position(pos, ss, states);
+
+        if (is_uci_dialect(CurrentProtocol) && token != "ucicyclone")
+        {
+            std::ostringstream oss;
+            oss << "id name " << engine_info(true) << "\n"
+                << Options << "\n"
+                << token << "ok";
+            std::string my_str = oss.str();
+            return oss.str();
+        }
+        // Allow to enforce protocol at startup
+        return "";
+    }
+
+    if (CurrentProtocol == XBOARD)
+    {
+        XBoard::stateMachine->process_command(token, inputstream);
+        // XBoard currently not supported; need to refactor 'process_command'
+        // to return a string 'result'
+        return "The xboard is not supported in this function";
+    }
+    
+    if (token == "setoption")
+    {
+        setoption(inputstream);
+        return "";
+    }
+    
+    // UCCI-specific banmoves command
+    // Universal Chinese Chess Interface (UCCI), a dialect for xiangqi
+    // https://en.wikipedia.org/wiki/Xiangqi
+    if (token == "banmoves")
+    {
+        while (inputstream >> token)
+        {
+            banmoves.push_back(UCI::to_move(pos, token));
+        }
+        return "";
+    }
+    
+    if (token == "go")
+    {
+        go(pos, inputstream, states, banmoves);
+        //! MainThread::search() saves to this global 'bestmove'
+        //! Refactor later
+        return bestmove;
+    }
+    
+    if (token == "position")
+    {
+        position(pos, inputstream, states);
+        banmoves.clear();
+        return "";
+    }
+    
+    if (token == "ucinewgame" || token == "usinewgame" ||
+             token == "uccinewgame")
+    {
+        Search::clear();
+        return "";
+    }
+    
+    if (token == "isready")
+    {
+        return "readyok";
+    }
+
+    return "unknown command";
+}
 
 /// UCI::loop() waits for a command from stdin, parses it and calls the
 /// appropriate function. Also intercepts EOF from stdin to ensure gracefully
@@ -581,8 +702,7 @@ void UCI::loop(int argc, char* argv[])
             cmd = "quit";
         }
 
-        // parse command
-        parse_token(cmd, pos, states, banmoves);
+        parse_command(cmd, pos, states, banmoves);
 
     } while (cmd != "quit");  // Command line args are one-shot
 }
