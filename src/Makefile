@@ -875,6 +875,7 @@ profileclean:
 # make library-build ARCH=x86-64 COMP=mingw largeboards=yes all=yes debug=yes optimize=no
 
 library-build: LDFLAGS += -static
+library-build: CXXFLAGS += -fPIC
 library-build: $(load_net) config-sanity $(LIB_OBJS) .depend 
 	@echo "Starting library-build. Creating libffish.a archive.."
 	@ar rvs libffish.a $(LIB_OBJS)

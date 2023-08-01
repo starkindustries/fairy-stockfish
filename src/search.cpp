@@ -39,10 +39,6 @@
 
 namespace Stockfish {
 
-//! This global stores the bestmove output and is declared in uci.h
-//! TODO: refactor out this global var
-//! extern std::string bestmove;
-
 namespace Search {
 
   LimitsType Limits;
@@ -305,8 +301,10 @@ void MainThread::search() {
   }
 
   //! TODO: refactor out this global var assignment
-  bestmove = UCI::move(rootPos, bestThread->rootMoves[0].pv[0]);
-  sync_cout << "bestmove " << bestmove;  
+  UCI::bestmove = UCI::move(rootPos, bestThread->rootMoves[0].pv[0]);
+  UCI::bestmove_is_set.notify_one();
+  
+  sync_cout << "bestmove " << UCI::bestmove;  
 
   if (bestThread->rootMoves[0].pv.size() > 1 || bestThread->rootMoves[0].extract_ponder_from_tt(rootPos))
       std::cout << " ponder " << UCI::move(rootPos, bestThread->rootMoves[0].pv[1]);

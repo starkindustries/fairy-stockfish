@@ -22,6 +22,8 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
 
 #include "types.h"
 #include "variant.h"
@@ -29,10 +31,6 @@
 
 namespace Stockfish
 {
-
-//! This global stores the bestmove output
-//! TODO: refactor out this global var
-extern std::string bestmove;
 
 class Position;
 
@@ -101,12 +99,16 @@ std::string pv(const Position& pos, Depth depth, Value alpha, Value beta);
 std::string wdl(Value v, int ply);
 Move to_move(const Position& pos, std::string& str);
 
-// The `pre_parse_init` is required in order to setup the variables needed for
-// the `parse_command_str` function.
-// The `parse_command_str` can be used directly instead of having to go through
-// the stdin/stdout uci protocol since it returns the result as a string
-void pre_parse_init(Position& pos, StateListPtr& states, std::vector<Move>& banmoves);
-std::string parse_command_str(std::string cmd, Position& pos, StateListPtr& states, std::vector<Move>& banmoves);
+// Bestmove variables
+extern std::string bestmove;
+extern std::mutex bestmove_mutex;
+extern std::condition_variable bestmove_is_set;
+
+// Custom parse-command members
+// The `parse_command_str()` function returns a string result of the command
+extern Position parse_command_pos;
+extern StateListPtr parse_command_states;
+std::string parse_command_str(std::string cmd);
 
 std::string option_name(std::string name);
 bool is_valid_option(UCI::OptionsMap& options, std::string& name);

@@ -40,9 +40,6 @@ using namespace std;
 namespace Stockfish
 {
 
-//! TODO: refactor out this global var
-std::string bestmove = "";
-
 extern vector<string> setup_bench(const Position&, istream&);
 
 namespace
@@ -511,28 +508,11 @@ void parse_command(string cmd, Position& pos, StateListPtr& states, std::vector<
     }
 }
 
-}  // namespace
-
-
-void UCI::pre_parse_init(Position& pos, StateListPtr& states, std::vector<Move>& banmoves)
-{
-    states = StateListPtr(new std::deque<StateInfo>(1));
-    assert(variants.find(Options["UCI_Variant"])->second != nullptr);
-    pos.set(variants.find(Options["UCI_Variant"])->second,
-            variants.find(Options["UCI_Variant"])->second->startFen, false,
-            &states->back(), Threads.main());
-
-    // XBoard state machine
-    XBoard::stateMachine = new XBoard::StateMachine(pos, states);
-    // UCCI banmoves state
-    banmoves = {};
-}
-
-// parse_command_str()
+// parse_command_str_helper()
 // Nearly identical to parse_command() above. However, this function returns
 // a 'result' string and also does not contain the non-UCI/debug commands.
-std::string UCI::parse_command_str(std::string cmd, Position& pos, StateListPtr& states, std::vector<Move>& banmoves)
-{
+std::string parse_command_str_helper(std::string cmd, Position& pos, StateListPtr& states)
+{    
     istringstream inputstream(cmd);
     std::string token;
     inputstream >> skipws >> token;
@@ -540,7 +520,7 @@ std::string UCI::parse_command_str(std::string cmd, Position& pos, StateListPtr&
     if (token == "quit" || token == "stop")
     {
         Threads.stop = true;
-        return "";
+        return "Quitting..";
     }
 
     // The GUI sends 'ponderhit' to tell us the user has played the expected
@@ -550,7 +530,7 @@ std::string UCI::parse_command_str(std::string cmd, Position& pos, StateListPtr&
     if (token == "ponderhit")
     {
         Threads.main()->ponder = false;  // Switch to normal search
-        return "";
+        return "Ponderhit! Switching to normal search";
     }
 
     if (token == "uci" || token == "usi" || token == "ucci" ||
@@ -572,15 +552,15 @@ std::string UCI::parse_command_str(std::string cmd, Position& pos, StateListPtr&
             return oss.str();
         }
         // Allow to enforce protocol at startup
-        return "";
+        return "ERROR: Unable to update current protocol to: " + token;
     }
 
     if (CurrentProtocol == XBOARD)
     {
-        XBoard::stateMachine->process_command(token, inputstream);
+        // XBoard::stateMachine->process_command(token, inputstream);
         // XBoard currently not supported; need to refactor 'process_command'
         // to return a string 'result'
-        return "The xboard is not supported in this function";
+        return "Xboard protocol is not supported in this function";
     }
     
     if (token == "setoption")
@@ -594,25 +574,25 @@ std::string UCI::parse_command_str(std::string cmd, Position& pos, StateListPtr&
     // https://en.wikipedia.org/wiki/Xiangqi
     if (token == "banmoves")
     {
-        while (inputstream >> token)
-        {
-            banmoves.push_back(UCI::to_move(pos, token));
-        }
-        return "";
+        // while (inputstream >> token)
+        // {
+        //     banmoves.push_back(UCI::to_move(pos, token));
+        // }
+        return "UCCI is not supported in this function";
     }
     
     if (token == "go")
     {
-        go(pos, inputstream, states, banmoves);
-        //! MainThread::search() saves to this global 'bestmove'
-        //! Refactor later
-        return bestmove;
+        go(pos, inputstream, states);
+        std::unique_lock<std::mutex> lock(UCI::bestmove_mutex);
+        UCI::bestmove_is_set.wait(lock);
+        return UCI::bestmove;
     }
     
     if (token == "position")
     {
         position(pos, inputstream, states);
-        banmoves.clear();
+        // banmoves.clear();
         return "";
     }
     
@@ -628,7 +608,30 @@ std::string UCI::parse_command_str(std::string cmd, Position& pos, StateListPtr&
         return "readyok";
     }
 
-    return "unknown command";
+    return "ERROR: unknown command";
+}
+
+}  // namespace
+
+// initialize UCI globals
+std::string UCI::bestmove;
+std::mutex UCI::bestmove_mutex;
+std::condition_variable UCI::bestmove_is_set;
+Position UCI::parse_command_pos;
+StateListPtr UCI::parse_command_states = nullptr;
+
+std::string UCI::parse_command_str(std::string cmd)
+{
+    // Initialize parser members if needed
+    if (parse_command_states == nullptr)
+    {
+        parse_command_states = StateListPtr(new std::deque<StateInfo>(1));
+        assert(variants.find(Options["UCI_Variant"])->second != nullptr);
+        parse_command_pos.set(variants.find(Options["UCI_Variant"])->second,
+                variants.find(Options["UCI_Variant"])->second->startFen, false,
+                &parse_command_states->back(), Threads.main());
+    }
+    return parse_command_str_helper(cmd, parse_command_pos, parse_command_states);
 }
 
 /// UCI::loop() waits for a command from stdin, parses it and calls the
